@@ -4,7 +4,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 
@@ -21,9 +22,6 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String
 });
-
-const secret = "Thisisourlittlesecret.";
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
 
 const User = new mongoose.model("User", userSchema);
 
@@ -44,11 +42,11 @@ app.route("/login")
                 console.log(err);
             } else {
                 if (foundUser) {
-                    if (foundUser.password === password) {
-                        res.render("secrets");
-                    } else {
-                        console.log("Wrong username/password");
-                    }
+                    bcrypt.compare(password, foundUser.password, (err, bcryptRes) => {
+                        if (bcryptRes === true) {
+                            res.render("secrets")
+                        }
+                    });
                 } else {
                     console.log("Wrong username/password");
                 }
@@ -61,18 +59,27 @@ app.route("/register")
         res.render("register");
     })
     .post((req, res) => {
-        const newUser = new User({
-            email: req.body.username,
-            password: req.body.password
-        });
 
-        newUser.save(err => {
-            if (err) {
-                console.log(err);
+        bcrypt.hash(req.body.password, saltRounds, (err, hash)=>{
+            if (!err) {
+                const newUser = new User({
+                    email: req.body.username,
+                    password: hash
+                });
+        
+                newUser.save(err => {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        res.render("secrets");
+                    }
+                });
             } else {
-                res.render("secrets");
+                console.log(err);
             }
         });
+
+        
     });
 
 app.listen(3000, () => {
